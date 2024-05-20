@@ -30,22 +30,18 @@ RUN wget -c -O trino.tar.gz ${TRINO_URL} \
     && mkdir -p ${TRINO_HOME}/etc/catalog /data/trino
 
 # node.properties
-COPY ./conf/trino/node.properties ${TRINO_HOME}/etc
+COPY ./docker/trino/conf/node.properties ${TRINO_HOME}/etc
 
 # config.properties
-COPY ./conf/trino/config.properties ${TRINO_HOME}/etc
+COPY ./docker/trino/conf/config.properties ${TRINO_HOME}/etc
 
 # log.properties
-COPY ./conf/trino/log.properties ${TRINO_HOME}/etc
+COPY ./docker/trino/conf/log.properties ${TRINO_HOME}/etc
 
 # jvm.config
-COPY ./conf/trino/jvm.config ${TRINO_HOME}/etc
+COPY ./docker/trino/conf/jvm.config ${TRINO_HOME}/etc
 
 # mysql.properties, mysql.properties
-COPY ./conf/trino/catalog/* ${TRINO_HOME}/etc/catalog
+COPY ./docker/trino/catalog/* ${TRINO_HOME}/etc/catalog
 
-COPY --chmod=755 ./docker/trino/entrypoint.sh /entrypoint.sh
-
-COPY --chmod=755 ./docker/trino/start-trino-server.sh /start-trino-server.sh
-
-CMD [ "/start-trino-server.sh" ]
+COPY --chmod=755 ./docker/trino/bin/ /bin/

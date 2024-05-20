@@ -1,0 +1,26 @@
+dbts:
+  target: local
+  outputs:
+    local:
+      type: trino
+      method: none
+      user: keyhong
+      password:
+      # database: [database name]
+      host: localhost
+      port: 8080
+      catalog: hive
+      schema: default
+      threads: 1
+
+    dev:
+      type: trino
+      method: none
+      user: keyhong
+      password:
+      database: [database name]
+      host: trino
+      port: 8080
+      catalog: hive
+      schema: default
+      threads: 1

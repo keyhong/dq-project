@@ -1,0 +1,6 @@
+version: 2
+
+seeds:
+  - name: bank_marketing
+    config: 
+      delimiter: ";"

@@ -1,4 +1,33 @@
-version: "3.9"
+x-hadoop-common:
+  &hadoop-common
+  profiles: [ "hadoop" ]
+  build:
+    dockerfile: ./docker/hadoop/Dockerfile
+  image: keyhong/hadoop:v1.0.0
+  environment:
+    &hadoop-common-env
+    CLUSTER_NAME: hadoop_cluster
+    HDFS_NAMENODE_DATA_DIR: /data/hadoop/dfs/name
+    HDFS_DATANODE_DATA_DIR: /data/hadoop/dfs/data
+  volumes:
+    - ./mnt/hadoop/namenode:/data/hadoop/dfs/name
+    - ./mnt/hadoop/datanode:/data/hadoop/dfs/data
+
+x-hive-common:
+  &hive-common
+  profiles: [ "hive" ]
+  build:
+    dockerfile: ./docker/hive/Dockerfile
+  image: keyhong/hive:v1.0.0
+  depends_on:
+    &hive-common-depends-on
+    namenode:
+      condition: service_healthy
+    datanode:
+      condition: service_healthy
+    mysql:
+      condition: service_healthy
+
 
 # Configure modules
 x-airflow-common:
@@ -41,65 +70,44 @@ services:
   #####################################################
   # Apache Hadoop
   #####################################################
-  custom-base-hadoop:
-    profiles: [ "hive" ]
-    build:
-      context: .
-      dockerfile: ./base-images/hadoop/Dockerfile
-    image: keyhong/custom-base-hadoop:v1.0.0
-    container_name: hadoop-image-build
-    entrypoint: /bin/bash
-    command: ["-c", "exec", "/entrypoint", "hadoop", "version"]
-
   namenode:
-    profiles: [ "hive" ]
-    depends_on:
-      custom-base-hadoop:
-        condition: service_completed_successfully
-    build:
-      context: .
-      dockerfile: ./docker/hadoop/namenode/Dockerfile
-    image: keyhong/namenode:v1.0.0
+    <<: *hadoop-common
     container_name: namenode
     expose:
-      - "9864" # HDFS Namenode default PRC
+      - "9820" # HDFS Namenode default RPC
     ports:
       - "9870:9870" # HDFS Namenode Web Http
-    volumes:
-      - ./mnt/hadoop/namenode:/data/hadoop/dfs/name
-    environment:
-      CLUSTER_NAME: hadoop_cluster
     healthcheck:
       test: [ "CMD", "nc", "-z", "namenode", "9870" ]
       timeout: 45s
       interval: 10s
       retries: 10
     restart: unless-stopped
+    entrypoint: |
+      /bin/bash -c "
+      /bin/start-namenode.sh
+      "
 
   datanode:
-    profiles: [ "hive" ]
-    depends_on:
-      namenode:
-        condition: service_healthy
-    build:
-      context: .
-      dockerfile: ./docker/hadoop/datanode/Dockerfile
-    image: keyhong/datanode:v1.0.0
+    <<: *hadoop-common
     container_name: datanode
     expose:
       - "9867" # HDFS Datanode IPC
     ports:
       - "9864:9864" # HDFS Datanode Web Http
-    volumes:
-      - ./mnt/hadoop/datanode:/data/hadoop/dfs/data
-    environment:
-      SERVICE_PRECONDITION: "namenode:9870"
+    depends_on:
+      namenode:
+        condition: service_healthy
     healthcheck:
       test: [ "CMD", "nc", "-z", "datanode", "9864" ]
       timeout: 45s
       interval: 10s
       retries: 10
     restart: unless-stopped
+    entrypoint: |
+      /bin/bash -c "
+      /bin/start-datanode.sh
+      "    
 
   #####################################################
   # MySQL
@@ -130,38 +138,9 @@ services:
   #####################################################
   # Apache Hive
   #####################################################
-  custom-base-hive:
-    profiles: [ "hive" ]
-    build:
-      context: .
-      dockerfile: ./base-images/hive/Dockerfile
-    image: keyhong/custom-base-hive:v1.0.0
-    container_name: hive-image-build
-    depends_on:
-      custom-base-hadoop:
-        condition: service_completed_successfully
-    entrypoint: /bin/bash
-    command: ["-c", "exec", "/entrypoint", "hive", "version"]
-
   hive-metastore:
-    profiles: [ "hive" ]
-    build:
-      context: .
-      dockerfile: ./docker/hive/metastore/Dockerfile
-    image: keyhong/hive-metastore:v1.0.0
+    <<: *hive-common
     container_name: hive-metastore
-    depends_on:
-      &hive-common-depends-on
-      custom-base-hive:
-        condition: service_completed_successfully
-      namenode:
-        condition: service_healthy
-      datanode:
-        condition: service_healthy
-      mysql:
-        condition: service_healthy
-    environment:
-      SERVICE_PRECONDITION: "namenode:9870 datanode:9864 mysql:3306"
     volumes:
       - ./mnt/schematool-check:/schematool-check
     ports:
@@ -171,20 +150,14 @@ services:
       timeout: 45s
       interval: 10s
     restart: unless-stopped
+    entrypoint: |
+      /bin/bash -c "
+      /bin/start-metastore.sh
+      "    
 
   hiveserver2:
-    profiles: [ "hive" ]
-    build:
-      context: .
-      dockerfile: ./docker/hive/hiveserver2/Dockerfile
-    image: keyhong/hiveserver2:v1.0.0
+    <<: *hive-common
     container_name: hiveserver2
-    depends_on:
-      <<: *hive-common-depends-on
-      hive-metastore:
-        condition: service_healthy
-    environment:
-      SERVICE_PRECONDITION: "hive-metastore:9083"
     ports:
       - "10000:10000" # HiveServer2 Client
       - "10002:10002" # HiveServer2 Web UI
@@ -194,30 +167,14 @@ services:
       interval: 10s
       retries: 10
     restart: unless-stopped
-
-  #####################################################
-  # Impala
-  #####################################################
-  impala:
-    profiles: ["impala"]
-    build:
-      context: .
-      dockerfile: ./docker/impala/Dockerfile
-    image: keyhong/impala:v1.0.0
-    container_name: impala
     depends_on:
-      - hive-metastore
-    environment:
-      SERVICE_PRECONDITION: "hive-metastore:9083"
-    ports:
-      - "8080:8080"
-    command: [ "sleep", "6000000" ]
-    # healthcheck:
-    #   test: [ "CMD", "nc", "-z", "trino", "8080" ]
-    #   timeout: 45s
-    #   interval: 10s
-    #   retries: 10
-    restart: unless-stopped
+      <<: *hive-common-depends-on
+      hive-metastore:
+        condition: service_healthy
+    entrypoint: |
+      /bin/bash -c "
+      /bin/start-hiveserver2.sh
+      "        
 
   #####################################################
   # Trino
@@ -225,14 +182,11 @@ services:
   trino:
     profiles: ["trino"]
     build:
-      context: .
       dockerfile: ./docker/trino/Dockerfile
     image: keyhong/trino:v1.0.0
     container_name: trino
     depends_on:
       - hive-metastore
-    environment:
-      SERVICE_PRECONDITION: "hive-metastore:9083"
     ports:
       - "8080:8080"
     healthcheck:
@@ -241,6 +195,10 @@ services:
       interval: 10s
       retries: 10
     restart: unless-stopped
+    entrypoint: |
+      /bin/bash -c "
+      /bin/start-trino-server.sh
+      "
 
   #####################################################
   # DBT

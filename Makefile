@@ -1,7 +1,7 @@
 .PHONY: up
 up: 
 	@ echo "\033[32m"[Execute CMD]"\033[0m \033[33m"COMPOSE_PROFILES=hive,impala,dbt,airflow docker-compose -f docker-compose.yml up --build -d --remove-orphans"\033[0m"
-	COMPOSE_PROFILES=hive,impala,dbt,airflow docker-compose -f docker-compose.yml up --build -d --remove-orphans
+	COMPOSE_PROFILES=hadoop,hive,trion,dbt,airflow docker-compose -f docker-compose.yml up --build -d --remove-orphans
 	@ echo ""
 	@ echo "##########################################"
 	@ echo "Container Hosts"
@@ -21,6 +21,9 @@ up:
 	@ echo ""
 	@ echo "##########################################"
 
+.PHONY: upup
+upup:
+	COMPOSE_PROFILES=hadoop,hive,trino docker-compose -f docker-compose.yml up --build -d --remove-orphans
 
 .PHONY: down
 down:
