@@ -1,0 +1,6 @@
+packages:
+  - package: elementary-data/elementary
+    version: 0.15.2
+
+  - package: calogica/dbt_expectations
+    version: 0.10.3

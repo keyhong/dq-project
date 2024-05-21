@@ -23,4 +23,7 @@ models:
       +materialized: view
     mart:
       +schema: mart
-      +materialized: table      
+      +materialized: table
+
+  elementary:
+    +schema: elementary
